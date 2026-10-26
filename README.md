@@ -5,6 +5,8 @@ Live browser demo on the [Brilliant Wear JavaScript SDK](https://github.com/bril
 Built for enterprise evaluations (systems-integrator and logistics conversations).
 
 ## What it shows
+- **Shift summary** — the four readings a safety or operations buyer asks for first, large enough to read from across a room: **risky lifts** (of all lifts, one pip per lift), **time on feet**, **load asymmetry** (left vs right share of insole load over the shift) and **steps** with cadence
+- **Shift ribbon** — trunk flexion across the whole shift with the safe / caution / risky bands, the trace coloured by the zone it is in, and every lift stamped on its peak (ring = good form, diamond = risky). Live it shows the last minute; on a recording it shows the whole take and a click or drag on it jumps the video
 - **Center of pressure & balance** — a **3D stance** (the golf app's `RecordingStance3D`, ported to vanilla three.js: the same translucent shoe GLBs + sensor-bed art) showing each insole's **live heading / relative orientation**, per-pad pressure glow, per-foot + combined center of pressure, with the L/R load split + stability score below it
 - **Footstep map** — waltz-chart-style numbered L/R footprints with a 10-second fade, direction from IMU yaw (insole-only; no external positioning SDK)
 - **Lifting posture** — trunk flexion/lean/twist from a Sense unit on the upper back; optional second unit on the pelvis distinguishes hip-hinge (good) from stooped-back (risky) lifts
@@ -15,13 +17,13 @@ Built for enterprise evaluations (systems-integrator and logistics conversations
 This is a **showcase + review** app. It does **not** capture data itself —
 **recording lives in the BrilliantWear portal** (Session Recording → the "Warehouse ergonomics" preset):
 
-- **☰ Recordings** (`recordings.html`) — a gallery of real captures. Each card plays the recording
+- **Recordings** (`recordings.html`) — a gallery of real captures. Each card plays the recording
   through the dashboard (`index.html?rec=<id>`) synced to its video, and offers the raw sensor data
   as **⬇ JSON** / **⬇ CSV**. Driven by `recordings/manifest.json`; add an entry + files to publish a take.
-- **▶ Simulate** — a full walking + good/bad-lift loop with no hardware. For quick demos.
-- **⤓ Load Recording** — open any portal export locally and replay the **entire dashboard
+- **Start shift** (the primary action) — a simulated shift with no hardware: walking, a good hip-hinge lift, a stooped (risky) lift, repeating. **End shift** stops it and leaves the summary on screen. The page always says whether the data is simulated or recorded (the chip beside "Shift summary").
+- **Open recording** — open any portal export locally and replay the **entire dashboard
   scrubbed in sync with its video**, the golf-demo review experience (see below).
-- **⬇ JSON / ⬇ CSV** on the dashboard export the loaded recording's raw data (JSON as-is; CSV is a
+- **Raw JSON / Raw CSV** on the recorded-shift panel export the loaded recording's raw data (JSON as-is; CSV is a
   flattened long format, one row per sample across scalar + pressure streams).
 
 ### Publishing a recording to the gallery
@@ -34,7 +36,7 @@ This is a **showcase + review** app. It does **not** capture data itself —
 ## Loading a recording
 
 Export a session from the portal (its raw sensor **data JSON** + the **webcam video**), then
-**⤓ Load Recording** and pick both files (select them together, or the JSON then the video).
+**Open recording** and pick both files (select them together, or the JSON then the video).
 
 The app re-derives the whole warehouse dashboard from the raw streams — per-insole & combined COP,
 individual sensor pressure, trunk flexion / hip-hinge-vs-stoop, footstep map, step & lift counts —
@@ -97,15 +99,35 @@ y always 0, c confidence 0–1 (MediaPipe's `visibility`, unknown = 0); `t` is v
 Serve the folder and open it in Chrome/Edge:
 
 ```bash
-npx serve .
+npm run serve        # node scripts/serve.mjs -> http://127.0.0.1:5871/   (or: npx serve .)
 ```
 
 (Serving matters: the shoe artwork is fetched from `assets/shoes.svg`, which `file://` blocks.
 Opening `index.html` directly still works, minus the artwork.)
 
+## Tests, smoke and screenshots
+
+```bash
+npm test             # node --test: shift statistics, a guard that the detection constants are untouched, theme/hygiene lints
+npm run smoke        # headless Chrome (playwright-core): idle page, a full simulated shift, a replay + ribbon seek, error state, reduced motion, no sideways overflow at 320/375/402, zero console errors
+npm run shoot -- shots after   # screenshots of every main screen at 1280, 1920, 402, 390 and 320 px
+```
+`smoke` and `shoot` use system Chrome through `playwright-core` (`PW=/path/to/playwright-core` to point at another copy) and serve the folder in-process on :5871 (`PORT` to change).
+
+## Files
+
+| file | what |
+|---|---|
+| `theme.css` | every colour, type, space and motion token + shared controls. Dark only, by design (a TV or a meeting-room laptop) |
+| `dashboard.css`, `gallery.css` | page layouts; tokens only, no literals |
+| `app.js` | state, detection pipeline, simulator, replay, gauge + footstep map canvases (unchanged maths) |
+| `shift-stats.js` | pure display arithmetic for the summary and ribbon (time on feet, load asymmetry, cadence, lift events); unit-tested |
+| `shift-view.js` | renders the summary tiles and the ribbon from `window.WH` each frame |
+| `stance3d.js` | the 3D stance (three.js); colours come from the theme tokens |
+
 ## Tuning notes
 
-The warehouse pipeline (used for both Simulate and replay re-derivation) lives in `app.js`:
+The warehouse pipeline (used for both the simulated shift and replay re-derivation) lives in `app.js`:
 
 - Thresholds (flexion zones, step detection, stride) are in `CFG`/`MAP` at the top.
 - **COP orientation** — `COP_FLIP_X` / `COP_FLIP_Y` near `COP_RECT`. If a replayed COP reads mirrored
@@ -126,7 +148,8 @@ but the 3D stance replaced it in the UI.
 
 ## Deploy (GitHub Pages)
 Push to a public repo → Settings → Pages → deploy from `main` root. The page is fully static;
-the SDK loads from unpkg.
+the SDK and three.js load from unpkg and the three typefaces from Google Fonts (offline, the page
+falls back to system fonts and the 3D panel stays empty).
 
 ---
 © Brilliant Sole, Inc. (dba Brilliant Wear)
