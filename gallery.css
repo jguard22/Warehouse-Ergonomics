@@ -1,0 +1,36 @@
+/* Brilliant Wear — Warehouse Ergonomics: recordings gallery. Tokens live in theme.css. */
+.rec-list { display: grid; gap: 0; }
+.rec { display: grid; grid-template-columns: minmax(0, 20rem) minmax(0, 1fr) auto; gap: var(--s4); align-items: start; padding: var(--s3) 0; border-top: 1px solid var(--rule); }
+.rec:last-child { border-bottom: 1px solid var(--rule); }
+.rec > * { min-width: 0; }
+
+.poster { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: var(--r); overflow: hidden; background: var(--video-bg); border: 1px solid var(--rule-soft); text-decoration: none; }
+.poster video, .poster .nopreview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.poster video { transition: transform var(--dur-3) var(--ease), opacity var(--dur-2) var(--ease); opacity: .92; }
+.poster:hover video, .poster:focus-visible video { transform: scale(1.03); opacity: 1; }
+.poster .nopreview { display: flex; align-items: center; justify-content: center; color: var(--text-3); font: 500 var(--fs-micro)/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.poster .play { position: absolute; left: var(--s2); bottom: var(--s2); width: 2.75rem; height: 2.75rem; border-radius: 50%; display: grid; place-items: center; background: var(--teal); color: var(--on-teal); transition: transform var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease); }
+.poster:hover .play { background: var(--teal-hi); transform: scale(1.06); }
+.poster .play svg { width: 1.1rem; height: 1.1rem; margin-left: .1rem; }
+
+.info h2 { font: 600 var(--fs-h2)/1.15 var(--font-num); letter-spacing: .03em; }
+.meta { margin-top: .25rem; font: 500 var(--fs-micro)/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.note { margin-top: var(--s1); color: var(--text-2); font-size: .95rem; max-width: 62ch; }
+.sensors { margin-top: var(--s1); display: flex; flex-wrap: wrap; gap: .25rem .75rem; font: 500 .85rem/1.4 var(--font-mono); color: var(--text-3); }
+.sensors .miss { color: var(--amber); }
+.acts { display: flex; flex-direction: column; gap: var(--s1); align-items: stretch; min-width: 12rem; }
+.acts .row { display: flex; gap: var(--s1); }
+.acts .row .btn { flex: 1; }
+
+.empty { color: var(--text-2); padding: var(--s6) 0; border-top: 1px solid var(--rule); }
+
+@media (max-width: 1000px) {
+  .rec { grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); }
+  .acts { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .acts .btn.primary { flex: 1 1 14rem; }
+  .acts .row { flex: 1 1 14rem; }
+}
+@media (max-width: 600px) {
+  .rec { grid-template-columns: minmax(0, 1fr); gap: var(--s2); }
+  .acts .btn.primary, .acts .row { flex-basis: 100%; }
+}

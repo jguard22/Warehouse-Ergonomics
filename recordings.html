@@ -3,67 +3,49 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Brilliant Wear — Warehouse Ergonomics Recordings</title>
-<style>
-  :root {
-    --navy: #1a1f47; --navy-2: #12163a; --panel: #21265c; --teal: #00d4aa; --teal-dim: #0aa88a;
-    --amber: #ffb020; --red: #ff5468; --text: #eef1ff; --muted: #9aa3c7; --line: #343b7a;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
-    background: radial-gradient(1200px 600px at 70% -10%, #232a68 0%, var(--navy) 45%, var(--navy-2) 100%);
-    color: var(--text); min-height: 100vh; padding: 20px 24px 48px; }
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
-  .brand h1 { font-size: 1.15rem; letter-spacing: .12em; font-weight: 700; }
-  .brand h1 .thin { color: var(--teal); font-weight: 500; }
-  .brand .sub { color: var(--muted); font-size: .85rem; margin-left: 10px; }
-  .btn-link { background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 9px 14px; border-radius: 9px; font-size: .85rem; text-decoration: none; }
-  .btn-link:hover { border-color: var(--teal); }
-  .lead { color: var(--muted); font-size: .85rem; margin: 14px 2px 18px; max-width: 720px; line-height: 1.5; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-  .card { background: linear-gradient(180deg, var(--panel) 0%, rgba(33,38,92,.6) 100%); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
-  .poster { aspect-ratio: 16/9; background: #05070f center/cover no-repeat; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .8rem; border-bottom: 1px solid var(--line); position: relative; }
-  .poster .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; color: rgba(255,255,255,.9); text-shadow: 0 2px 10px rgba(0,0,0,.5); }
-  .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-  .body h2 { font-size: 1rem; }
-  .meta { color: var(--muted); font-size: .78rem; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0; }
-  .chip { font-size: .68rem; padding: 2px 8px; border-radius: 999px; background: rgba(0,212,170,.12); color: var(--teal); }
-  .chip.warn { background: rgba(255,176,32,.14); color: var(--amber); }
-  .note { color: var(--amber); font-size: .74rem; }
-  .actions { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; }
-  .actions a, .actions button { flex: 0 0 auto; text-decoration: none; border-radius: 8px; padding: 8px 12px; font-size: .8rem; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
-  .actions .play-btn { background: var(--teal); border-color: var(--teal); color: #06251d; font-weight: 650; flex: 1; text-align: center; }
-  .actions a:hover, .actions button:hover { border-color: var(--teal); }
-  .empty { color: var(--muted); font-size: .9rem; padding: 40px 4px; }
-  .footer-note { margin-top: 22px; color: var(--muted); font-size: .75rem; }
-</style>
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#12163a" />
+<title>Recordings — Warehouse ergonomics — Brilliant Wear</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2312163a'/%3E%3Cellipse cx='16' cy='20' rx='5.5' ry='8' fill='%2300d4aa'/%3E%3Cellipse cx='16' cy='8.5' rx='3.6' ry='3.6' fill='%2300d4aa'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500;600&family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Sofia+Sans+Condensed:wght@500;600;700&display=swap" />
+<link rel="stylesheet" href="theme.css?v=20261025a" />
+<link rel="stylesheet" href="gallery.css?v=20261025a" />
 </head>
 <body>
-<header>
-  <div class="brand">
-    <h1>BRILLIANT<span class="thin">WEAR</span></h1>
-    <span class="sub">Warehouse Ergonomics — Recordings</span>
-  </div>
-  <a class="btn-link" href="index.html">▶ Open demo (Simulate)</a>
-</header>
+<a class="skip" href="#main">Skip to the recordings</a>
+<div class="page">
+  <header class="top">
+    <div class="top-id">
+      <a class="wordmark" href="index.html" aria-label="Brilliant Wear home">BRILLIANT<span>WEAR</span></a>
+      <h1>Recordings</h1>
+      <p class="purpose">Real shifts captured in the Brilliant Wear portal. Open one and the whole dashboard follows its video.</p>
+    </div>
+    <div class="top-actions">
+      <div class="top-secondary">
+        <a class="btn" href="index.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+          Warehouse ergonomics</a>
+      </div>
+    </div>
+  </header>
 
-<p class="lead">
-  Real captures from the BrilliantWear portal. Click a recording to play it through the dashboard —
-  center of pressure, per-insole heading, lifting posture — scrubbed in sync with the video.
-  Download the raw sensor data as JSON or CSV from each recording.
-</p>
+  <main id="main">
+    <div class="sec-head"><h2>Captured shifts</h2><span class="label" id="count"></span></div>
+    <div class="rec-list" id="grid"><div class="empty">Loading recordings…</div></div>
+  </main>
 
-<div class="grid" id="grid"><div class="empty">Loading recordings…</div></div>
-
-<p class="footer-note">
-  Built on the open <a href="https://github.com/brilliantsole/BrilliantWear-JavaScript-SDK" style="color:var(--teal)">Brilliant Wear JavaScript SDK</a>.
-  Recordings play entirely in the browser — no install.
-</p>
+  <p class="foot">Built on the open <a href="https://github.com/brilliantsole/BrilliantWear-JavaScript-SDK">Brilliant Wear JavaScript SDK</a>. Recordings play in your browser; nothing is uploaded.</p>
+</div>
 
 <script>
-const fmtDur = (s) => s == null ? "" : (s >= 60 ? `${Math.floor(s/60)}m ${s%60}s` : `${s}s`);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const fmtDate = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ""); return m ? `${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}` : (d || ""); };
+const fmtDur = (s) => s == null ? "" : (s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z" fill="currentColor"/></svg>';
+const ICON_DOWN = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>';
 
 async function rawToCsv(url, fmt) {
   const raw = await fetch(url).then((r) => r.json());
@@ -90,30 +72,38 @@ function saveText(name, text, mime) {
 }
 
 function card(r) {
-  const el = document.createElement("div"); el.className = "card";
+  const el = document.createElement("article"); el.className = "rec";
+  const href = `index.html?rec=${encodeURIComponent(r.id)}`;
   const sensors = (r.sensors || []).map((s) => {
-    const has = s !== "gameRotation-missing";
-    return `<span class="chip${has ? "" : " warn"}">${esc(s.replace("-missing", " (missing)"))}</span>`;
+    const miss = /-missing$/.test(s);
+    return `<span class="${miss ? "miss" : ""}">${esc(s.replace("-missing", " (missing)"))}</span>`;
   }).join("");
+  const meta = [fmtDate(r.date), fmtDur(r.durationSec), r.devices ? `${r.devices} devices` : ""].filter(Boolean).join(" · ");
   el.innerHTML = `
-    <a class="poster" href="index.html?rec=${encodeURIComponent(r.id)}" style="${r.poster ? `background-image:url('${esc(r.poster)}')` : ""}">
-      ${r.poster ? "" : "no preview"}<span class="play">▶</span>
+    <a class="poster" href="${href}" aria-label="Replay ${esc(r.title || r.id)} in the dashboard">
+      ${r.video ? `<video muted playsinline preload="metadata" src="${esc(r.video)}#t=${r.posterAt ?? 8}" aria-hidden="true" tabindex="-1"></video>` : `<span class="nopreview">No video</span>`}
+      <span class="play">${ICON_PLAY}</span>
     </a>
-    <div class="body">
+    <div class="info">
       <h2>${esc(r.title || r.id)}</h2>
-      <div class="meta">${esc(r.date || "")}${r.durationSec ? " · " + fmtDur(r.durationSec) : ""}${r.devices ? " · " + r.devices + " devices" : ""}</div>
-      <div class="chips">${sensors}</div>
-      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
-      <div class="actions">
-        <a class="play-btn" href="index.html?rec=${encodeURIComponent(r.id)}">▶ Play in dashboard</a>
-        <a href="${esc(r.json)}" download title="Raw sensor JSON">⬇ JSON</a>
-        <button title="Raw sensor CSV">⬇ CSV</button>
+      <p class="meta">${esc(meta)}</p>
+      ${r.note ? `<p class="note">${esc(r.note)}</p>` : ""}
+      <p class="sensors" aria-label="Streams recorded">${sensors}</p>
+    </div>
+    <div class="acts">
+      <a class="btn primary" href="${href}">${ICON_PLAY} Replay in dashboard</a>
+      <div class="row">
+        <a class="btn" href="${esc(r.json)}" download title="Raw sensor data, JSON">${ICON_DOWN} JSON</a>
+        <button class="btn" type="button" title="Raw sensor data, CSV">${ICON_DOWN} CSV</button>
       </div>
     </div>`;
-  el.querySelector("button").onclick = async (ev) => {
-    ev.preventDefault(); const b = ev.target; b.textContent = "…";
-    try { const csv = await rawToCsv(r.json, r.format); saveText(`${(r.id||"recording")}.csv`, csv || "", "text/csv"); b.textContent = "⬇ CSV"; }
-    catch (e) { b.textContent = "error"; }
+  el.querySelector("video")?.addEventListener("error", (ev) => { ev.target.replaceWith(Object.assign(document.createElement("span"), { className: "nopreview", textContent: "No preview" })); });
+  const btn = el.querySelector("button");
+  btn.onclick = async () => {
+    const label = btn.innerHTML; btn.disabled = true; btn.textContent = "Preparing…";
+    try { const csv = await rawToCsv(r.json, r.format); saveText(`${(r.id || "recording")}.csv`, csv || "", "text/csv"); }
+    catch (e) { btn.textContent = "Failed"; await new Promise((res) => setTimeout(res, 1500)); }
+    btn.innerHTML = label; btn.disabled = false;
   };
   return el;
 }
@@ -124,10 +114,11 @@ function card(r) {
     const man = await fetch("recordings/manifest.json").then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
     const recs = (man.recordings || []);
     grid.innerHTML = "";
-    if (!recs.length) { grid.innerHTML = '<div class="empty">No recordings yet.</div>'; return; }
+    document.getElementById("count").textContent = `${recs.length} ${recs.length === 1 ? "recording" : "recordings"}`;
+    if (!recs.length) { grid.innerHTML = '<div class="empty">No recordings yet. Publish one from the portal and add it to recordings/manifest.json.</div>'; return; }
     recs.forEach((r) => grid.appendChild(card(r)));
   } catch (e) {
-    grid.innerHTML = `<div class="empty">No recordings manifest found (recordings/manifest.json). ${esc(e.message)}</div>`;
+    grid.innerHTML = `<div class="empty">The recordings list could not be loaded (${esc(e.message)}). Check your connection and reload.</div>`;
   }
 })();
 </script>
