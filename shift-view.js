@@ -174,11 +174,17 @@
       ctx.textAlign = x < px + 14 * u ? "left" : x > px + pw - 14 * u ? "right" : "center";
       ctx.fillText(SS.clock(t), x, py + ph + 20 * u);
     }
-    // band names, top-left of each band
+    // band names, top-left of each band (just the angles on a narrow phone, where the colours carry the rest)
+    const narrow = pw < 420;
     ctx.textAlign = "left"; ctx.fillStyle = TOK["text-3"]; ctx.font = `500 ${12 * u}px ${TOK.fontMono}`;
-    ctx.fillText(`RISKY  ≥ ${red}°`, px + 8 * u, Y(MAX_DEG) + 16 * u);
-    ctx.fillText(`CAUTION  ${amber}–${red}°`, px + 8 * u, Y(red) + 16 * u);
-    ctx.fillText(`SAFE  < ${amber}°`, px + 8 * u, Y(amber) + 16 * u);
+    const bandLabels = narrow
+      ? [[`≥${red}°`, Y(MAX_DEG)], [`${amber}–${red}°`, Y(red)], [`<${amber}°`, Y(amber)]]
+      : [[`RISKY  ≥ ${red}°`, Y(MAX_DEG)], [`CAUTION  ${amber}–${red}°`, Y(red)], [`SAFE  < ${amber}°`, Y(amber)]];
+    const taken = [];   // rectangles the lift labels must stay clear of
+    for (const [txt2, y0] of bandLabels) {
+      ctx.fillText(txt2, px + 8 * u, y0 + 16 * u);
+      taken.push({ x0: px, x1: px + 8 * u + ctx.measureText(txt2).width + 6 * u, y0: y0 + 2 * u, y1: y0 + 20 * u });
+    }
 
     if (!src.t.length) {
       const msg = m === "loading" ? "Opening the recording…" : m === "error" ? "The recording could not be opened. Check the file and try again." : "Start a shift to draw trunk flexion here";
@@ -239,11 +245,13 @@
         ctx.beginPath(); ctx.moveTo(0, -9 * u); ctx.lineTo(8 * u, 0); ctx.lineTo(0, 9 * u); ctx.lineTo(-8 * u, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
       }
       ctx.restore();
-      const label = `#${l.n} ${l.good ? "GOOD" : "RISKY"} ${Math.round(l.peak)}°`;
+      const label = narrow ? `#${l.n} ${Math.round(l.peak)}°` : `#${l.n} ${l.good ? "GOOD" : "RISKY"} ${Math.round(l.peak)}°`;
       const tw = ctx.measureText(label).width;
-      if (x - tw / 2 > lastRight + 6 * u && x - tw / 2 > px && x + tw / 2 < px + pw) {
-        const above = y - 20 * u > py - 6 * u;
-        const ly = above ? y - 16 * u : y + 24 * u;
+      const above = y - 20 * u > py - 6 * u;
+      const ly = above ? y - 16 * u : y + 24 * u;
+      const box = { x0: x - tw / 2, x1: x + tw / 2, y0: ly - 14 * u, y1: ly + 4 * u };
+      const clear = !taken.some((r) => box.x0 < r.x1 && box.x1 > r.x0 && box.y0 < r.y1 && box.y1 > r.y0);
+      if (clear && x - tw / 2 > lastRight + 6 * u && x - tw / 2 > px && x + tw / 2 < px + pw) {
         ctx.textAlign = "center"; ctx.lineWidth = 4 * u; ctx.strokeStyle = TOK.well; ctx.lineJoin = "round";
         ctx.globalAlpha = pop; ctx.strokeText(label, x, ly); ctx.fillStyle = color; ctx.fillText(label, x, ly); ctx.globalAlpha = 1;
         lastRight = x + tw / 2;

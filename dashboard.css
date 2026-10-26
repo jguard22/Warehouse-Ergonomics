@@ -130,6 +130,7 @@ body[data-mode="replay"] .recording { display: grid; grid-template-columns: minm
   .stance-mount { height: min(86vw, 380px); }
 }
 @media (max-width: 520px) {
+  .ribbon-well { height: 230px; }
   .readouts { grid-template-columns: minmax(0, 1fr); }
   .legend { gap: var(--s1) var(--s2); }
 }
