@@ -37,8 +37,12 @@ const MIRROR_DELTA_YAW_ROLL = false;
 // supplies Δyaw = −ΔH natively. Composed: scene yaw = −H(t) — one consistent
 // from-above frame shared with the footstep map.
 const NORTH_SIGN = -1;
-const COP_COLOR = 0xf59e0b, COMBINED_COP_COLOR = 0x22d3ee;
-const PAD_COLOR = new THREE.Color(0x2ab5a0), PAD_HOT = new THREE.Color(0xf43f5e);
+// colours come from the theme tokens (theme.css), not from literals here
+const _css = getComputedStyle(document.documentElement);
+const tok = (name, fallback) => new THREE.Color(_css.getPropertyValue(`--${name}`).trim() || fallback);
+const COP_COLOR = tok("cop-foot", "#f59e0b"), COMBINED_COP_COLOR = tok("cop-combined", "#22d3ee");
+const PAD_COLOR = tok("pad", "#2ab5a0"), PAD_HOT = tok("pad-hot", "#f43f5e");
+const GRID_MAJOR = tok("scene-grid", "#3a4270"), GRID_MINOR = tok("scene-grid-2", "#2a3060");
 
 const bedParity = (side) => (Math.abs(BED_ROTATION_Z[side]) < 0.001 ? 1 : -1);
 const bedLocalX = (px, side, bedWidth) => (px - 0.5) * bedWidth * PAD_MIRROR_X[side] * bedParity(side);
@@ -68,18 +72,18 @@ async function boot() {
   scene.background = null;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  const H = 360;
   const width = () => mount.clientWidth || 640;
-  renderer.setSize(width(), H);
+  const H = () => mount.clientHeight || 360;      // the mount's height is set in CSS (clamp), so the scene grows on a TV
+  renderer.setSize(width(), H());
   mount.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(42, width() / H, 0.1, 5000);
+  const camera = new THREE.PerspectiveCamera(42, width() / H(), 0.1, 5000);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9099a5, 1.1));
   const dir = new THREE.DirectionalLight(0xffffff, 0.6); dir.position.set(30, 80, 40); scene.add(dir);
-  const grid = new THREE.GridHelper(140, 28, 0x3a4270, 0x2a3060);
+  const grid = new THREE.GridHelper(140, 28, GRID_MAJOR, GRID_MINOR);
   grid.material.transparent = true; grid.material.opacity = 0.5; scene.add(grid);
 
   const combinedCoP = new THREE.Mesh(new THREE.SphereGeometry(1.1, 20, 16), new THREE.MeshBasicMaterial({ color: COMBINED_COP_COLOR }));
@@ -164,12 +168,12 @@ async function boot() {
   const sz = new THREE.Vector3(); box.getSize(sz);
   const reach = Math.max(sz.x, sz.z, 20);
   controls.target.set(c.x, 3, c.z);
-  camera.position.set(c.x, reach * 1.7 + 24, reach * 1.6 + 20);
+  camera.position.set(c.x, reach * 1.25 + 18, reach * 1.2 + 14);
   controls.update();
 
   document.getElementById("stance-loading")?.remove();
 
-  const ro = new ResizeObserver(() => { camera.aspect = width() / H; camera.updateProjectionMatrix(); renderer.setSize(width(), H); });
+  const ro = new ResizeObserver(() => { camera.aspect = width() / H(); camera.updateProjectionMatrix(); renderer.setSize(width(), H()); });
   ro.observe(mount);
 
   function footGroundCoP(side, out) {

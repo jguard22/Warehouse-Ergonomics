@@ -3,204 +3,187 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Brilliant Wear — Warehouse Ergonomics Demo</title>
-<style>
-  :root {
-    --navy: #1a1f47; --navy-2: #12163a; --panel: #21265c; --panel-2: #2a3070;
-    --teal: #00d4aa; --teal-dim: #0aa88a; --amber: #ffb020; --red: #ff5468;
-    --text: #eef1ff; --muted: #9aa3c7; --line: #343b7a;
-    font-size: 16px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
-    background: radial-gradient(1200px 600px at 70% -10%, #232a68 0%, var(--navy) 45%, var(--navy-2) 100%);
-    color: var(--text); min-height: 100vh; padding: 20px 24px 48px;
-  }
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-  .brand { display: flex; align-items: baseline; gap: 10px; }
-  .brand h1 { font-size: 1.15rem; letter-spacing: .12em; font-weight: 700; }
-  .brand h1 .thin { color: var(--teal); font-weight: 500; }
-  .brand .sub { color: var(--muted); font-size: .85rem; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px; }
-  button {
-    background: var(--panel); color: var(--text); border: 1px solid var(--line);
-    padding: 9px 14px; border-radius: 9px; font-size: .85rem; cursor: pointer; transition: all .15s;
-  }
-  button:hover { border-color: var(--teal); }
-  button.primary { background: var(--teal); border-color: var(--teal); color: #06251d; font-weight: 650; }
-  button.connected { background: var(--teal-dim); border-color: var(--teal-dim); color: #04211a; font-weight: 650; }
-  button.danger { border-color: var(--red); color: var(--red); }
-  button.recording { background: var(--red); border-color: var(--red); color: #2a0710; font-weight: 700; animation: recpulse 1.2s ease-in-out infinite; }
-  button:disabled { opacity: .4; cursor: not-allowed; }
-  .btn-link { background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 9px 14px; border-radius: 9px; font-size: .85rem; text-decoration: none; display: inline-flex; align-items: center; transition: all .15s; }
-  .btn-link:hover { border-color: var(--teal); }
-  #rec-title { color: var(--teal); font-weight: 650; margin-left: 4px; }
-  @keyframes recpulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,84,104,.5); } 50% { box-shadow: 0 0 0 6px rgba(255,84,104,0); } }
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
-  .card {
-    grid-column: span 4; background: linear-gradient(180deg, var(--panel) 0%, rgba(33,38,92,.6) 100%);
-    border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px; min-height: 120px;
-  }
-  .card h2 { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
-  .card .big { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .card .unit { font-size: .8rem; color: var(--muted); margin-left: 4px; }
-  @media (max-width: 1100px) { .card { grid-column: span 6; } }
-  @media (max-width: 680px)  { .card { grid-column: span 12; } }
-  .span5 { grid-column: span 5 !important; }
-  .span6 { grid-column: span 6 !important; }
-  .span7 { grid-column: span 7 !important; }
-  .span12 { grid-column: span 12 !important; }
-  @media (max-width: 1100px) { .span5, .span6, .span7 { grid-column: span 12 !important; } }
-  /* real shoe artwork stage — golf shoe model + sensor-bed overlay, light "product render" card */
-  .shoe-stage { display: flex; justify-content: center; }
-  .shoe-frame {
-    background: linear-gradient(180deg, #fdfdff 0%, #e9edf6 100%);
-    border-radius: 12px; border: 1px solid rgba(255,255,255,.14);
-    box-shadow: inset 0 0 40px rgba(26,31,71,.08); padding: 6px;
-  }
-  .shoe-frame svg { display: block; height: 380px; width: auto; max-width: 100%; }
-  @media (max-width: 680px) { .shoe-frame svg { height: 300px; } }
-  .shoe-fallback { color: var(--muted); font-size: .8rem; padding: 40px 20px; text-align: center; }
-  .stance-mount { position: relative; width: 100%; min-height: 360px; border-radius: 12px; overflow: hidden; background: linear-gradient(180deg, #141a44 0%, #0d1030 100%); border: 1px solid var(--line); }
-  .stance-mount canvas { display: block; }
-  .stance-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .85rem; text-align: center; padding: 0 16px; }
-  .stance-hint { color: var(--muted); font-size: .72rem; text-align: right; margin: 4px 2px 0; }
-  .loadbar { height: 14px; border-radius: 7px; background: var(--navy-2); border: 1px solid var(--line); overflow: hidden; display: flex; margin-top: 10px; }
-  .loadbar .left { background: var(--teal); transition: width .12s linear; }
-  .loadbar .right { background: #6f7bff; flex: 1; transition: width .12s linear; }
-  .loadlabels { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; margin-top: 4px; }
-  .gauge-wrap { display: flex; gap: 14px; align-items: center; }
-  .gauge-side { flex: 1; }
-  .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .75rem; font-weight: 650; letter-spacing: .06em; }
-  .pill.green { background: rgba(0,212,170,.15); color: var(--teal); }
-  .pill.amber { background: rgba(255,176,32,.15); color: var(--amber); }
-  .pill.red { background: rgba(255,84,104,.18); color: var(--red); }
-  .kv { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed rgba(52,59,122,.6); font-size: .85rem; }
-  .kv:last-child { border-bottom: none; }
-  .kv .k { color: var(--muted); }
-  .kv .v { font-variant-numeric: tabular-nums; font-weight: 600; }
-  #log { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: .74rem; color: var(--muted); height: 132px; overflow-y: auto; line-height: 1.55; }
-  #log .t { color: var(--teal); }
-  #log .warn { color: var(--amber); }
-  #log .bad { color: var(--red); }
-  .statusdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 6px; }
-  .statusdot.on { background: var(--teal); }
-  .footer-note { margin-top: 16px; color: var(--muted); font-size: .75rem; }
-  .toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: .82rem; cursor: pointer; user-select: none; }
-  .toggle input { accent-color: var(--teal); width: 16px; height: 16px; }
-  .video-row { display: flex; justify-content: center; }
-  .video-wrap { position: relative; width: 100%; max-width: 760px; border-radius: 10px; overflow: hidden; background: #05070f; border: 1px solid var(--line); aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
-  .video-wrap video.cam { width: 100%; height: 100%; object-fit: contain; display: none; background: #05070f; }
-  .video-wrap.has-video video.cam { display: block; }
-  .video-empty { color: var(--muted); font-size: .8rem; text-align: center; padding: 18px 22px; line-height: 1.5; }
-  .video-wrap.has-video .video-empty { display: none; }
-</style>
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#12163a" />
+<title>Warehouse ergonomics — Brilliant Wear</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2312163a'/%3E%3Cellipse cx='16' cy='20' rx='5.5' ry='8' fill='%2300d4aa'/%3E%3Cellipse cx='16' cy='8.5' rx='3.6' ry='3.6' fill='%2300d4aa'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500;600&family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Sofia+Sans+Condensed:wght@500;600;700&display=swap" />
+<link rel="stylesheet" href="theme.css?v=20261025a" />
+<link rel="stylesheet" href="dashboard.css?v=20261025a" />
 </head>
-<body>
-<header>
-  <div class="brand">
-    <h1>BRILLIANT<span class="thin">WEAR</span></h1>
-    <span class="sub">Warehouse Ergonomics Demo <b id="rec-title"></b></span>
-  </div>
-  <div class="controls">
-    <a class="btn-link" href="recordings.html">☰ Recordings</a>
-    <button id="btn-sim" class="primary">▶ Simulate</button>
-    <button id="btn-load">⤓ Load Recording</button>
-    <input id="file-in" type="file" multiple accept=".json,application/json,video/*" hidden />
-    <button id="btn-json" disabled>⬇ JSON</button>
-    <button id="btn-csv" disabled>⬇ CSV</button>
-  </div>
-</header>
+<body data-mode="idle">
+<a class="skip" href="#main">Skip to the dashboard</a>
 
-<div class="grid">
-  <!-- Loaded recording, synced (headline) -->
-  <div class="card span12" id="video-card">
-    <h2><span class="statusdot" id="dot-cam"></span>Recording — synced playback</h2>
-    <div class="video-row">
-      <div class="video-wrap">
-        <video id="cam" class="cam" muted playsinline></video>
-        <div class="video-empty" id="video-empty">Load a recording (data JSON + video) exported from the portal — it replays here, scrubbing the whole dashboard in sync with the video.</div>
+<div class="page">
+  <header class="top">
+    <div class="top-id">
+      <a class="wordmark" href="index.html" aria-label="Brilliant Wear home">BRILLIANT<span>WEAR</span></a>
+      <h1>Warehouse ergonomics</h1>
+      <p class="purpose">A shift measured at the feet and upper back: risky lifts, time on feet, load balance and footsteps.</p>
+    </div>
+    <div class="top-actions">
+      <button id="btn-sim" class="btn primary lg" type="button" data-running="false" title="Run a simulated shift: walking, a safe lift and a risky lift">
+        <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z" fill="currentColor"/></svg>
+        <svg class="i-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>
+        <span id="btn-sim-label">Start shift</span>
+      </button>
+      <div class="top-secondary">
+        <a class="btn" href="recordings.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h9"/></svg>
+          Recordings</a>
+        <button id="btn-load" class="btn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+          Open recording</button>
+        <input id="file-in" type="file" multiple accept=".json,application/json,video/*" hidden />
       </div>
     </div>
-    <input id="scrub" type="range" min="0" max="1000" value="0" style="width:100%;display:none;margin-top:10px;accent-color:var(--teal)" />
-    <div class="loadlabels" style="margin-top:8px"><span id="video-mode">idle</span><span class="k" id="video-sync"></span></div>
-  </div>
+  </header>
 
-  <!-- Center of pressure -->
-  <div class="card span7">
-    <h2><span class="statusdot" id="dot-insoles"></span>Center of Pressure & Balance</h2>
-    <div id="stance3d" class="stance-mount"><div class="stance-fallback" id="stance-loading">Loading 3D stance…</div></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 2px 0;gap:12px">
-      <label class="toggle"><input type="checkbox" id="vision-toggle" disabled /> Vision foot positions <span class="k" id="vision-hint" style="margin-left:4px"></span></label>
-      <span class="stance-hint" style="margin:0">drag to orbit · scroll to zoom</span>
-    </div>
-    <div class="loadbar" style="margin-top:10px"><div class="left" id="load-left" style="width:50%"></div><div class="right" id="load-right"></div></div>
-    <div class="loadlabels"><span>L <b id="load-left-pct">50%</b></span><span>Stability <b id="stability">—</b></span><span><b id="load-right-pct">50%</b> R</span></div>
-    <div class="loadlabels" style="margin-top:8px"><span>◎ per-insole COP</span><span>● individual sensors</span><span>⬤ combined COP + sway</span></div>
-  </div>
-
-  <!-- Posture -->
-  <div class="card span5">
-    <h2><span class="statusdot" id="dot-torso"></span>Lifting Posture <span id="posture-pill" class="pill green" style="margin-left:8px">SAFE</span></h2>
-    <div class="gauge-wrap">
-      <canvas id="gauge" width="260" height="170"></canvas>
-      <div class="gauge-side">
-        <div class="kv"><span class="k">Trunk flexion</span><span class="v" id="flexion">0°</span></div>
-        <div class="kv"><span class="k">Lateral lean</span><span class="v" id="lean">0°</span></div>
-        <div class="kv"><span class="k">Twist</span><span class="v" id="twist">0°</span></div>
-        <div class="kv"><span class="k">Pelvis delta (hinge)</span><span class="v" id="hinge">—</span></div>
-        <div class="kv"><span class="k">Lift form</span><span class="v" id="liftform">—</span></div>
-        <div class="kv"><span class="k">Time in red</span><span class="v" id="redtime">0.0s</span></div>
+  <main id="main">
+    <!-- Recorded shift: only while a recording is open -->
+    <section class="recording" id="video-card" aria-label="Recorded shift">
+      <div>
+        <div class="video-wrap">
+          <video id="cam" class="cam" muted playsinline></video>
+          <div class="video-empty" id="video-empty">Open a recording (data JSON and video) exported from the portal. It replays here, and the whole dashboard follows the video.</div>
+        </div>
+        <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Scrub the recorded shift" />
       </div>
+      <div class="rec-info">
+        <p class="label">Recorded shift</p>
+        <h2 class="rec-title" id="rec-title"></h2>
+        <p class="rec-note" id="rec-note"></p>
+        <p class="rec-meta"><span id="video-mode">idle</span><br /><span id="video-sync"></span></p>
+        <label class="toggle"><input type="checkbox" id="vision-toggle" disabled /><span>Foot positions measured by the camera <small id="vision-hint"></small></span></label>
+        <div class="rec-actions">
+          <button id="btn-json" class="btn" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
+            Raw JSON</button>
+          <button id="btn-csv" class="btn" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
+            Raw CSV</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shift summary: the four readings -->
+    <section class="summary" aria-labelledby="h-summary">
+      <div class="sec-head">
+        <h2 id="h-summary">Shift summary</h2>
+        <span class="chip" id="shift-chip" data-kind="idle"><i></i><span id="shift-chip-text">No shift running</span></span>
+      </div>
+      <div class="kpis">
+        <div class="kpi" id="kpi-risk" data-state="none">
+          <p class="label">Risky lifts</p>
+          <p class="kpi-value"><b class="kpi-risky" id="kpi-risky">0</b><span class="kpi-unit" id="kpi-risky-of">of 0 lifts</span></p>
+          <p class="kpi-sub" id="kpi-risky-sub">No lifts yet</p>
+          <div class="pips" id="lift-pips" aria-hidden="true"></div>
+        </div>
+        <div class="kpi" id="kpi-time">
+          <p class="label">Time on feet</p>
+          <p class="kpi-value"><b id="kpi-feet">0:00</b></p>
+          <p class="kpi-sub">While the insoles carry load</p>
+        </div>
+        <div class="kpi" id="kpi-load">
+          <p class="label">Load asymmetry</p>
+          <p class="kpi-value"><b id="kpi-asym">—</b><span class="kpi-unit" id="kpi-asym-unit"></span></p>
+          <p class="kpi-sub" id="kpi-asym-sub">Left vs right, whole shift</p>
+          <div class="split" aria-hidden="true"><i class="l" id="split-l"></i><i class="r"></i></div>
+          <div class="split-labels" aria-hidden="true"><span>L <b id="split-l-pct">—</b></span><span><b id="split-r-pct">—</b> R</span></div>
+        </div>
+        <div class="kpi" id="kpi-steps-tile">
+          <p class="label">Steps</p>
+          <p class="kpi-value"><b id="kpi-steps">0</b></p>
+          <p class="kpi-sub" id="kpi-cadence">Cadence appears once walking</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shift ribbon: the whole shift's trunk flexion, lifts marked -->
+    <section class="ribbon" aria-labelledby="h-ribbon">
+      <div class="sec-head">
+        <h2 id="h-ribbon">Shift ribbon</h2>
+        <p>Trunk flexion across the shift. Each marker is a lift, scored by whether the hips hinged.<span class="only-replay"> Click the ribbon to jump to that moment.</span></p>
+      </div>
+      <div class="ribbon-well">
+        <canvas id="ribbon" role="img" aria-label="Trunk flexion over the shift"></canvas>
+      </div>
+      <p class="sr-only" id="ribbon-sr" aria-live="polite"></p>
+    </section>
+
+    <div class="two">
+      <!-- Footstep map -->
+      <section aria-labelledby="h-map">
+        <div class="sec-head">
+          <h2 id="h-map">Footstep map</h2>
+          <p>The last ten seconds. Toes show where each foot points; arrows show the direction of travel.</p>
+        </div>
+        <div class="map-well"><canvas id="stepmap" role="img" aria-label="Footstep map: numbered left and right footprints from the last 10 seconds"></canvas></div>
+        <div class="legend"><span class="sw-left"><i></i><em>Left foot</em></span><span class="sw-right"><i></i><em>Right foot</em></span><span><em>Numbers count steps</em></span></div>
+      </section>
+
+      <!-- Lifting posture, now -->
+      <section class="posture" id="posture-panel" data-zone="green" aria-labelledby="h-posture">
+        <div class="sec-head">
+          <h2 id="h-posture">Lifting posture</h2>
+          <span id="posture-pill" class="pill green">Safe</span>
+        </div>
+        <canvas id="gauge" class="gauge" role="img" aria-label="Trunk flexion gauge"></canvas>
+        <div class="gauge-key" aria-hidden="true">
+          <span><i style="background:var(--teal)"></i>Safe &lt; <b><span data-cfg="flexionAmber">20</span>°</b></span>
+          <span><i style="background:var(--amber)"></i>Caution</span>
+          <span><i style="background:var(--red)"></i>Risky ≥ <b><span data-cfg="flexionRed">45</span>°</b></span>
+        </div>
+        <dl class="readouts">
+          <div class="ro"><dt>Trunk flexion</dt><dd id="flexion">0°</dd></div>
+          <div class="ro"><dt>Lateral lean</dt><dd id="lean">0°</dd></div>
+          <div class="ro"><dt>Twist</dt><dd id="twist">0°</dd></div>
+          <div class="ro"><dt title="Difference between trunk and pelvis tilt. A small gap means the hips hinged with the back.">Trunk–pelvis delta</dt><dd id="hinge">—</dd></div>
+          <div class="ro"><dt>Current lift</dt><dd id="liftform">—</dd></div>
+          <div class="ro"><dt>Time in red</dt><dd id="redtime">0.0 s</dd></div>
+        </dl>
+        <label class="toggle"><input type="checkbox" id="haptic-toggle" checked /><span>Haptic coaching <small>The insoles buzz when trunk flexion passes <span data-cfg="flexionRed">45</span>°</small></span></label>
+      </section>
     </div>
-    <label class="toggle" style="margin-top:8px"><input type="checkbox" id="haptic-toggle" checked />Haptic coaching — buzz insoles when posture goes red</label>
-  </div>
 
-  <!-- Footstep map -->
-  <div class="card span6">
-    <h2>Footstep Map — last 10 seconds</h2>
-    <canvas id="stepmap" width="640" height="240" style="width:100%"></canvas>
-    <div class="loadlabels"><span style="color:var(--teal)">● Left</span><span class="k" style="color:var(--muted)">toes = facing · path arrows = travel (opposed ⇒ walking backwards)</span><span style="color:#6f7bff">● Right</span></div>
-  </div>
+    <div class="two">
+      <!-- Balance + 3D stance -->
+      <section aria-labelledby="h-balance">
+        <div class="sec-head">
+          <h2 id="h-balance">Balance and center of pressure</h2>
+          <p>Weight on each foot right now. Drag to orbit, scroll to zoom.</p>
+        </div>
+        <div id="stance3d" class="stance-mount"><div class="stance-fallback" id="stance-loading">Loading the 3D stance…</div></div>
+        <div class="loadbar" aria-hidden="true"><div class="left" id="load-left" style="width:50%"></div><div class="right" id="load-right"></div></div>
+        <div class="loadlabels"><span>L <b id="load-left-pct">50%</b></span><span title="Steadiness of the combined center of pressure over the last 3 seconds">Stability <b id="stability">—</b></span><span><b id="load-right-pct">50%</b> R</span></div>
+        <div class="legend"><span class="sw-pad"><i></i><em>Sensor pressure</em></span><span class="sw-cop-foot"><i></i><em>Center of pressure, each foot</em></span><span class="sw-cop-combined"><i></i><em>Both feet, with sway trail</em></span></div>
+      </section>
 
-  <!-- Gait -->
-  <div class="card">
-    <h2>Footsteps</h2>
-    <div><span class="big" id="steps">0</span><span class="unit">steps</span></div>
-    <div class="kv"><span class="k">Cadence</span><span class="v" id="cadence">— spm</span></div>
-    <div class="kv"><span class="k">L/R asymmetry</span><span class="v" id="asym">—</span></div>
-  </div>
+      <!-- Events -->
+      <details class="events" id="events" open>
+        <summary class="sec-head"><h2>Shift events</h2><span class="label">Newest at the bottom</span></summary>
+        <div id="log" role="log" aria-live="off" tabindex="0" aria-label="Shift events"></div>
+      </details>
+    </div>
+  </main>
 
-  <!-- Lifts -->
-  <div class="card">
-    <h2>Box Lifts</h2>
-    <div><span class="big" id="lifts">0</span><span class="unit">lifts</span></div>
-    <div class="kv"><span class="k">Good form</span><span class="v" id="lifts-good" style="color:var(--teal)">0</span></div>
-    <div class="kv"><span class="k">Risky form</span><span class="v" id="lifts-bad" style="color:var(--red)">0</span></div>
-  </div>
-
-  <!-- Session log -->
-  <div class="card">
-    <h2>Session Log</h2>
-    <div id="log"></div>
-  </div>
+  <p class="foot">The data here is simulated or replayed from recordings made with Brilliant Wear insoles and Sense units. Recordings you open stay in your browser. Built on the open <a href="https://github.com/brilliantsole/BrilliantWear-JavaScript-SDK">Brilliant Wear JavaScript SDK</a>.</p>
 </div>
 
-<p class="footer-note">
-  Runs entirely in the browser over Web Bluetooth (Chrome/Edge). No install. Built on the open
-  <a href="https://github.com/brilliantsole/BrilliantWear-JavaScript-SDK" style="color:var(--teal)">Brilliant Wear JavaScript SDK</a>.
-  Simulate mode previews the full experience without hardware.
-</p>
+<noscript><p style="padding:2rem">This demo needs JavaScript.</p></noscript>
 
 <script src="https://unpkg.com/brilliantsole@latest/build/brilliantsole.js"></script>
-<script src="app.js?v=20260826h"></script>
+<script src="shift-stats.js?v=20261025a"></script>
+<script src="app.js?v=20261025a"></script>
+<script src="shift-view.js?v=20261025a"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://unpkg.com/three@0.183.2/build/three.module.js",
   "three/addons/": "https://unpkg.com/three@0.183.2/examples/jsm/"
 } }
 </script>
-<script type="module" src="stance3d.js?v=20260825e"></script>
+<script type="module" src="stance3d.js?v=20261025a"></script>
 </body>
 </html>

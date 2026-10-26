@@ -56,6 +56,46 @@
   };
 
   const $ = (id) => document.getElementById(id);
+
+  // ---------- theme tokens + canvas helpers ----------
+  // Colours and fonts for the canvases come from theme.css (custom properties), read
+  // once at boot; nothing in a drawing routine is a literal colour.
+  const TOK = {};
+  const TOKEN_NAMES = ["teal", "peri", "red", "amber", "text", "text-2", "text-3", "rule", "well", "ground-1", "foot-left", "foot-right"];
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const n of TOKEN_NAMES) TOK[n] = cs.getPropertyValue(`--${n}`).trim();
+    TOK.fontMono = cs.getPropertyValue("--font-mono").trim() || "monospace";
+    TOK.fontNum = cs.getPropertyValue("--font-num").trim() || "sans-serif";
+    TOK.fontUi = cs.getPropertyValue("--font-ui").trim() || "sans-serif";
+    TOK.rem = parseFloat(cs.fontSize) || 16;
+    // resolve var() aliases (foot-left: var(--teal)) to the colour they point at
+    for (const n of ["foot-left", "foot-right"]) if (/^var\(/.test(TOK[n])) TOK[n] = TOK[n].includes("--teal") ? TOK.teal : TOK.peri;
+  }
+  const hexRgb = (hex) => {
+    const h = String(hex).replace("#", "");
+    const f = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    return [parseInt(f.slice(0, 2), 16), parseInt(f.slice(2, 4), 16), parseInt(f.slice(4, 6), 16)];
+  };
+  const rgba = (hex, a) => { const [r, g, b] = hexRgb(hex); return `rgba(${r},${g},${b},${a})`; };
+  readTokens();
+  window.addEventListener("resize", readTokens);
+  const REDUCED_MOTION = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
+  // Size a canvas's backing store to its CSS box at the device pixel ratio (crisp on a TV and a phone),
+  // and return a context whose units are CSS pixels. Sizes are cached by a ResizeObserver.
+  const _cvSize = new WeakMap();
+  const _cvRO = new ResizeObserver((entries) => { for (const e of entries) _cvSize.set(e.target, { w: e.contentRect.width, h: e.contentRect.height }); });
+  function fitCanvas(cv) {
+    if (!_cvSize.has(cv)) { const r = cv.getBoundingClientRect(); _cvSize.set(cv, { w: r.width, h: r.height }); _cvRO.observe(cv); }
+    const { w, h } = _cvSize.get(cv);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pw = Math.max(1, Math.round(w * dpr)), ph = Math.max(1, Math.round(h * dpr));
+    if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(pw / Math.max(1, w), 0, 0, ph / Math.max(1, h), 0, 0);
+    return { ctx, w: Math.max(1, w), h: Math.max(1, h), u: TOK.rem / 16 };
+  }
+
   let CLOCK = null;                 // when set (offline re-derive), now() returns virtual ms
   const now = () => (CLOCK == null ? performance.now() : CLOCK);
   let suppressLog = false;          // silence the on-screen log during offline re-derive
@@ -249,8 +289,8 @@
         const good = S.liftPeakDelta != null
           ? S.liftPeakDelta <= CFG.hingeGoodDelta          // hips hinged with torso → good
           : S.liftPeak < CFG.stoopPeakDeg;                 // fallback: shallow peak → good
-        if (good) { S.liftsGood++; log(`Lift #${S.lifts}: good form (peak ${S.liftPeak.toFixed(0)}°)`); }
-        else { S.liftsBad++; log(`Lift #${S.lifts}: RISKY — stooped back (peak ${S.liftPeak.toFixed(0)}°)`, "bad"); }
+        if (good) { S.liftsGood++; log(`Lift #${S.lifts}: good form (peak ${S.liftPeak.toFixed(0)}°)`, "ok"); }
+        else { S.liftsBad++; log(`Lift #${S.lifts}: risky, stooped back (peak ${S.liftPeak.toFixed(0)}°)`, "bad"); }
         renderCounters();
       }
     }
@@ -262,7 +302,7 @@
     const t = now();
     if (t - S.lastHapticAt < CFG.hapticCooldownMs) return;
     S.lastHapticAt = t;
-    log("⚠ posture red — haptic buzz sent to insoles", "warn");
+    log(S.sim ? "Trunk flexion in the red zone: haptic cue (simulated, no insoles connected)" : "Trunk flexion in the red zone: haptic buzz sent to the insoles", "warn");
     SDKAdapter.buzzInsoles();
   }
 
@@ -485,26 +525,68 @@
     VisBake.prev = { side: ev.side, x: p.x, z: p.z || 0, t: ev.t };
   }
 
-  const mapCtx = $("stepmap").getContext("2d");
+  const mapCv = $("stepmap");
+  // The view eases toward the fitted box so the map never jumps when old prints age out
+  // (display only; the footprints themselves are laid down exactly as before).
+  const mapView = { cx: 0, cy: 0, scale: 0, init: false };
+  function drawFootGlyph(ctx, x, y, headingDeg, G, fill) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((headingDeg * Math.PI) / 180);
+    ctx.scale(G, G);
+    ctx.fillStyle = fill;
+    ctx.beginPath(); ctx.ellipse(0, 3, 5, 8.5, 0, 0, Math.PI * 2); ctx.fill();     // sole
+    ctx.beginPath(); ctx.ellipse(0, -8, 3.6, 4, 0, 0, Math.PI * 2); ctx.fill();    // toe
+    ctx.restore();
+  }
   function drawStepMap() {
-    const w = mapCtx.canvas.width, h = mapCtx.canvas.height;
-    mapCtx.clearRect(0, 0, w, h);
+    const { ctx, w, h, u } = fitCanvas(mapCv);
+    ctx.clearRect(0, 0, w, h);
     const t = (S.replayActive && S.clockT != null) ? S.clockT : now();
     const fresh = S.footprints.filter((p) => t - p.t <= MAP.windowMs);
+    const gs = Math.max(1, Math.min(2.2, Math.min(w / 640, h / 300)));      // glyph + type scale with the canvas
+    const hasLeft = TOK["foot-left"], hasRight = TOK["foot-right"];
+
     if (!fresh.length) {
-      mapCtx.fillStyle = "rgba(154,163,199,.45)";
-      mapCtx.font = "12px sans-serif"; mapCtx.textAlign = "center";
-      mapCtx.fillText("walk to draw the map", w / 2, h / 2);
+      mapView.init = false;
+      // designed empty state: a ghost pair of prints and one plain sentence
+      const gx = w / 2, gy = h / 2 - 24 * u;
+      ctx.save(); ctx.setLineDash([4 * u, 4 * u]); ctx.lineWidth = 1.5 * u;
+      for (const [dx, side, rot] of [[-22, "left", -8], [22, "right", 8]]) {
+        ctx.strokeStyle = rgba(side === "left" ? hasLeft : hasRight, 0.55);
+        ctx.save(); ctx.translate(gx + dx * 1.8 * gs * u, gy + (side === "left" ? 14 : -14) * gs * u); ctx.rotate((rot * Math.PI) / 180); ctx.scale(gs * 2.4 * u, gs * 2.4 * u);
+        ctx.lineWidth = 1.5 / (gs * 2.4 * u);
+        ctx.beginPath(); ctx.ellipse(0, 3, 5, 8.5, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(0, -8, 3.6, 4, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+      ctx.fillStyle = TOK["text-2"]; ctx.font = `500 ${15 * u * Math.min(gs, 1.5)}px ${TOK.fontUi}`; ctx.textAlign = "center";
+      ctx.fillText("Footprints appear as the wearer walks", w / 2, h / 2 + 64 * u * Math.min(gs, 1.4));
       return;
     }
-    // fit recent prints into view with padding
+    // fit recent prints into view with padding (eased)
     const xs = fresh.map((p) => p.x), ys = fresh.map((p) => p.y);
     const minX = Math.min(...xs) - 0.5, maxX = Math.max(...xs) + 0.5;
     const minY = Math.min(...ys) - 0.5, maxY = Math.max(...ys) + 0.5;
-    const scale = Math.min(w / (maxX - minX), h / (maxY - minY), 90);
-    const ox = (w - (maxX - minX) * scale) / 2 - minX * scale;
-    const oy = (h - (maxY - minY) * scale) / 2 - minY * scale;
-    const P = (p) => [p.x * scale + ox, p.y * scale + oy];
+    const pad = 28 * u;
+    const tScale = Math.min((w - 2 * pad) / (maxX - minX), (h - 2 * pad) / (maxY - minY), 90 * gs);
+    const tcx = (minX + maxX) / 2, tcy = (minY + maxY) / 2;
+    if (!mapView.init || REDUCED_MOTION.matches) { mapView.cx = tcx; mapView.cy = tcy; mapView.scale = tScale; mapView.init = true; }
+    else { const k = 0.14; mapView.cx += (tcx - mapView.cx) * k; mapView.cy += (tcy - mapView.cy) * k; mapView.scale += (tScale - mapView.scale) * k; }
+    const scale = mapView.scale;
+    const P = (p) => [(p.x - mapView.cx) * scale + w / 2, (p.y - mapView.cy) * scale + h / 2];
+
+    // faint metre grid: gives the eye something fixed to read the walking against
+    ctx.fillStyle = rgba(TOK["text-3"], 0.28);
+    const gx0 = Math.floor((mapView.cx - w / 2 / scale)), gx1 = Math.ceil((mapView.cx + w / 2 / scale));
+    const gy0 = Math.floor((mapView.cy - h / 2 / scale)), gy1 = Math.ceil((mapView.cy + h / 2 / scale));
+    if ((gx1 - gx0) * (gy1 - gy0) < 900) {
+      for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) {
+        const [px, py] = P({ x: gx, y: gy });
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      }
+    }
 
     // Connecting path in stride order, with an ARROWHEAD per segment showing the
     // direction of TRAVEL. The glyphs show where the toes POINT — when the two
@@ -515,50 +597,41 @@
     for (let i = 1; i < fresh.length; i++) {
       const a = P(fresh[i - 1]), b = P(fresh[i]);
       const age = (t - fresh[i].t) / MAP.windowMs;
-      mapCtx.strokeStyle = `rgba(154,163,199,${0.45 * (1 - age)})`;
-      mapCtx.lineWidth = 1.5;
-      mapCtx.beginPath(); mapCtx.moveTo(a[0], a[1]); mapCtx.lineTo(b[0], b[1]); mapCtx.stroke();
+      ctx.strokeStyle = rgba(TOK["text-3"], 0.55 * (1 - age));
+      ctx.lineWidth = 1.5 * u;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
       const dxs = b[0] - a[0], dys = b[1] - a[1];
       // arrow only on real strides (> 0.3 m of actual displacement) — arrows on
       // lateral foot-to-foot hops and in-place weight shifts read as noise
       const distM = Math.hypot(fresh[i].x - fresh[i - 1].x, fresh[i].y - fresh[i - 1].y);
-      if (distM > 0.3 && Math.hypot(dxs, dys) > 14) {
-        mapCtx.save();
-        mapCtx.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-        mapCtx.rotate(Math.atan2(dys, dxs));
-        mapCtx.fillStyle = `rgba(238,241,255,${0.55 * (1 - age)})`;
-        mapCtx.beginPath(); mapCtx.moveTo(5, 0); mapCtx.lineTo(-3, -4); mapCtx.lineTo(-3, 4); mapCtx.closePath(); mapCtx.fill();
-        mapCtx.restore();
+      if (distM > 0.3 && Math.hypot(dxs, dys) > 14 * u) {
+        ctx.save();
+        ctx.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        ctx.rotate(Math.atan2(dys, dxs));
+        ctx.scale(u * gs * 0.9, u * gs * 0.9);
+        ctx.fillStyle = rgba(TOK.text, 0.6 * (1 - age));
+        ctx.beginPath(); ctx.moveTo(5, 0); ctx.lineTo(-3, -4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.fill();
+        ctx.restore();
       }
     }
-    // footprints
-    // Glyphs grow with the view zoom so the toe/heel asymmetry stays readable.
-    // (Capped: at 2.4× the number labels drifted ~30 px from their prints and the
-    // sequence became misreadable — field report "looks worse".)
-    const G = Math.max(1.25, Math.min(1.8, scale / 40));
-    fresh.forEach((p) => {
+    // footprints. Glyphs grow with the view zoom so the toe/heel asymmetry stays
+    // readable (capped: at 2.4× the number labels drifted ~30 px from their prints and the
+    // sequence became misreadable — field report "looks worse").
+    const G = Math.max(1.25, Math.min(1.8, scale / 40)) * gs * 0.9;
+    fresh.forEach((p, i) => {
       const [x, y] = P(p);
       const age = (t - p.t) / MAP.windowMs;
-      const alpha = Math.max(0.08, 1 - age);
-      const color = p.side === "left" ? `rgba(0,212,170,${alpha})` : `rgba(111,123,255,${alpha})`;
-      mapCtx.save();
-      mapCtx.translate(x, y);
-      mapCtx.rotate((p.heading * Math.PI) / 180);
-      mapCtx.scale(G, G);
-      // sole
-      mapCtx.fillStyle = color;
-      mapCtx.beginPath();
-      mapCtx.ellipse(0, 3, 5, 8.5, 0, 0, Math.PI * 2);
-      mapCtx.fill();
-      // toe
-      mapCtx.beginPath();
-      mapCtx.ellipse(0, -8, 3.6, 4, 0, 0, Math.PI * 2);
-      mapCtx.fill();
-      mapCtx.restore();
+      const alpha = Math.max(0.1, 1 - age);
+      drawFootGlyph(ctx, x, y, p.heading, G, rgba(p.side === "left" ? hasLeft : hasRight, alpha));
+      if (i === fresh.length - 1) {                        // newest print gets a ring
+        ctx.strokeStyle = rgba(TOK.text, 0.75); ctx.lineWidth = 1.5 * u;
+        ctx.beginPath(); ctx.arc(x, y, 14 * G, 0, Math.PI * 2); ctx.stroke();
+      }
       // sequence number
-      mapCtx.fillStyle = `rgba(238,241,255,${Math.max(0.25, 1 - age)})`;
-      mapCtx.font = "600 9px sans-serif"; mapCtx.textAlign = "center";
-      mapCtx.fillText(p.n, x + (p.side === "left" ? -16 : 16), y + 3);
+      ctx.fillStyle = rgba(TOK.text, Math.max(0.3, 1 - age));
+      ctx.font = `600 ${11 * u * Math.min(gs, 1.5)}px ${TOK.fontMono}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(p.n, x + (p.side === "left" ? -1 : 1) * 17 * G, y + 1);
+      ctx.textBaseline = "alphabetic";
     });
     // Direction banner — say it in WORDS while the wearer is walking. Reading
     // direction from toe-vs-path geometry alone proved unreliable for viewers
@@ -566,37 +639,43 @@
     const newest = fresh[fresh.length - 1];
     if (newest && t - newest.t < 2000 && fresh.length >= 2) {
       const back = GaitDir.dirAt(newest.t) === -1;
-      const label = back ? "walking BACKWARDS" : "walking forward";
-      mapCtx.font = "700 11px sans-serif";
-      const tw = mapCtx.measureText(label).width;
-      mapCtx.fillStyle = back ? "rgba(245,158,11,.18)" : "rgba(0,212,170,.12)";
-      mapCtx.beginPath(); mapCtx.roundRect(10, 10, tw + 18, 22, 11); mapCtx.fill();
-      mapCtx.fillStyle = back ? "rgba(245,158,11,.95)" : "rgba(0,212,170,.9)";
-      mapCtx.textAlign = "left";
-      mapCtx.fillText(label, 19, 25);
+      const label = back ? "Walking backwards" : "Walking forward";
+      const fs = 13 * u * Math.min(gs, 1.5);
+      ctx.font = `600 ${fs}px ${TOK.fontUi}`;
+      const tw = ctx.measureText(label).width;
+      const bh = fs * 2, bx = 12 * u, by = 12 * u;
+      ctx.fillStyle = rgba(back ? TOK.amber : TOK.teal, 0.16);
+      ctx.beginPath(); ctx.roundRect(bx, by, tw + fs * 1.6, bh, bh / 2); ctx.fill();
+      ctx.strokeStyle = rgba(back ? TOK.amber : TOK.teal, 0.7); ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = back ? TOK.amber : TOK.teal;
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(label, bx + fs * 0.8, by + bh / 2 + 1);
+      ctx.textBaseline = "alphabetic";
     }
     if (S.mapFrame === "camera") {
       // camera indicator — the map is in the VIDEO's frame: camera at the bottom
       // edge looking up the map, so it reads side-by-side with the footage
-      mapCtx.save();
-      mapCtx.translate(w / 2, h - 10);
-      mapCtx.strokeStyle = "rgba(238,241,255,.55)"; mapCtx.fillStyle = "rgba(238,241,255,.7)";
-      mapCtx.lineWidth = 1.5;
-      mapCtx.beginPath(); mapCtx.moveTo(-7, 4); mapCtx.lineTo(7, 4); mapCtx.lineTo(4, -3); mapCtx.lineTo(-4, -3); mapCtx.closePath(); mapCtx.stroke();
-      mapCtx.font = "600 9px sans-serif"; mapCtx.textAlign = "center";
-      mapCtx.fillText("camera", 0, -7);
-      mapCtx.restore();
+      ctx.save();
+      ctx.translate(w / 2, h - 12 * u);
+      ctx.scale(u * Math.min(gs, 1.4), u * Math.min(gs, 1.4));
+      ctx.strokeStyle = rgba(TOK.text, 0.6); ctx.fillStyle = rgba(TOK.text, 0.75);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-7, 4); ctx.lineTo(7, 4); ctx.lineTo(4, -3); ctx.lineTo(-4, -3); ctx.closePath(); ctx.stroke();
+      ctx.font = `600 10px ${TOK.fontMono}`; ctx.textAlign = "center";
+      ctx.fillText("camera", 0, -8);
+      ctx.restore();
     } else if (S.magMap) {
       // compass rose — headings are true-north referenced (mag-fused insoles)
-      mapCtx.save();
-      mapCtx.translate(w - 18, 20);
-      mapCtx.strokeStyle = "rgba(238,241,255,.55)"; mapCtx.fillStyle = "rgba(238,241,255,.75)";
-      mapCtx.lineWidth = 1.5;
-      mapCtx.beginPath(); mapCtx.moveTo(0, 8); mapCtx.lineTo(0, -6); mapCtx.stroke();
-      mapCtx.beginPath(); mapCtx.moveTo(-3.5, -3); mapCtx.lineTo(0, -9); mapCtx.lineTo(3.5, -3); mapCtx.closePath(); mapCtx.fill();
-      mapCtx.font = "600 9px sans-serif"; mapCtx.textAlign = "center";
-      mapCtx.fillText("N", 0, 18);
-      mapCtx.restore();
+      ctx.save();
+      ctx.translate(w - 24 * u, 30 * u);
+      ctx.scale(u * Math.min(gs, 1.4), u * Math.min(gs, 1.4));
+      ctx.strokeStyle = rgba(TOK.text, 0.6); ctx.fillStyle = rgba(TOK.text, 0.8);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, -6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-3.5, -3); ctx.lineTo(0, -9); ctx.lineTo(3.5, -3); ctx.closePath(); ctx.fill();
+      ctx.font = `600 10px ${TOK.fontMono}`; ctx.textAlign = "center";
+      ctx.fillText("N", 0, 20);
+      ctx.restore();
     }
   }
 
@@ -732,7 +811,7 @@
     if (S.simPhaseT > phases[S.simPhase]) {
       const idx = (order.indexOf(S.simPhase) + 1) % order.length;
       S.simPhase = order[idx]; S.simPhaseT = 0;
-      if (S.simPhase.startsWith("lift")) log(`Simulating ${S.simPhase === "liftGood" ? "a proper hip-hinge lift" : "a stooped-back lift"}…`);
+      if (S.simPhase.startsWith("lift")) log(`Simulated lift: ${S.simPhase === "liftGood" ? "the hips hinge with the back" : "a stooped back"}…`);
     }
     const t = S.simT / 1000;
 
@@ -794,7 +873,6 @@
   }
 
   // ---------- rendering ----------
-  const gaugeCtx = $("gauge").getContext("2d");
 
   // Real shoe artwork: assets/shoes.svg (golf shoe model + sensor-bed overlay).
   // Pads are vector paths id'd pad-{left,right}-{i} in anatomical order:
@@ -948,82 +1026,93 @@
     },
   };
 
+  const gaugeCv = $("gauge");
+  const GAUGE_MAX_DEG = 90;
   function drawGauge() {
-    const w = gaugeCtx.canvas.width, h = gaugeCtx.canvas.height;
-    const cx = w / 2, cy = h - 14, R = Math.min(w / 2 - 8, h - 26);
-    gaugeCtx.clearRect(0, 0, w, h);
+    const { ctx, w, h, u } = fitCanvas(gaugeCv);
+    ctx.clearRect(0, 0, w, h);
+    const thick = 14 * u * Math.max(1, Math.min(1.5, w / 480));
+    const numH = Math.min(h * 0.3, 54 * u);
+    const cx = w / 2, cy = h - numH - 8 * u;
+    const R = Math.max(40, Math.min(w / 2 - 34 * u, cy - thick / 2 - 22 * u));
+    const ang = (deg) => Math.PI + (Math.min(GAUGE_MAX_DEG, Math.max(0, deg)) / GAUGE_MAX_DEG) * Math.PI * 0.99;
+    const f = Math.min(GAUGE_MAX_DEG, Math.max(0, S.flexion));
     const segs = [
-      [0, CFG.flexionAmber, "#00d4aa"],
-      [CFG.flexionAmber, CFG.flexionRed, "#ffb020"],
-      [CFG.flexionRed, 90, "#ff5468"],
+      [0, CFG.flexionAmber, TOK.teal],
+      [CFG.flexionAmber, CFG.flexionRed, TOK.amber],
+      [CFG.flexionRed, GAUGE_MAX_DEG, TOK.red],
     ];
+    // each zone drawn dim, then bright up to the needle: the dial fills as the trunk bends
     segs.forEach(([a, b, color]) => {
-      gaugeCtx.beginPath();
-      gaugeCtx.strokeStyle = color; gaugeCtx.lineWidth = 12; gaugeCtx.lineCap = "butt";
-      gaugeCtx.arc(cx, cy, R, Math.PI + (a / 90) * Math.PI * 0.99, Math.PI + (b / 90) * Math.PI * 0.99);
-      gaugeCtx.stroke();
+      ctx.lineWidth = thick; ctx.lineCap = "butt";
+      ctx.strokeStyle = rgba(color, 0.28);
+      ctx.beginPath(); ctx.arc(cx, cy, R, ang(a), ang(b)); ctx.stroke();
+      if (f > a) { ctx.strokeStyle = color; ctx.beginPath(); ctx.arc(cx, cy, R, ang(a), ang(Math.min(f, b))); ctx.stroke(); }
     });
-    const ang = Math.PI + (Math.min(90, S.flexion) / 90) * Math.PI * 0.99;
-    gaugeCtx.strokeStyle = "#eef1ff"; gaugeCtx.lineWidth = 3;
-    gaugeCtx.beginPath();
-    gaugeCtx.moveTo(cx, cy);
-    gaugeCtx.lineTo(cx + Math.cos(ang) * (R - 14), cy + Math.sin(ang) * (R - 14));
-    gaugeCtx.stroke();
-    gaugeCtx.fillStyle = "#eef1ff"; gaugeCtx.font = "600 13px sans-serif"; gaugeCtx.textAlign = "center";
-    gaugeCtx.fillText(`${S.flexion.toFixed(0)}°`, cx, cy - R / 2);
+    // threshold ticks + direct labels (the numbers the zones change at)
+    ctx.fillStyle = TOK["text-2"]; ctx.font = `500 ${12 * u}px ${TOK.fontMono}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const d of [0, CFG.flexionAmber, CFG.flexionRed, GAUGE_MAX_DEG]) {
+      const a = ang(d), r2 = R + thick / 2 + 12 * u;
+      ctx.fillText(`${d}°`, cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
+    }
+    ctx.textBaseline = "alphabetic";
+    // needle + hub
+    const a = ang(f);
+    ctx.strokeStyle = TOK.text; ctx.lineWidth = 3.5 * u; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * (R - thick / 2 - 6 * u), cy + Math.sin(a) * (R - thick / 2 - 6 * u)); ctx.stroke();
+    ctx.fillStyle = TOK["ground-1"]; ctx.strokeStyle = TOK.text; ctx.lineWidth = 3 * u;
+    ctx.beginPath(); ctx.arc(cx, cy, 7 * u, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // the reading, big enough for the back of the room
+    const zone = f >= CFG.flexionRed ? TOK.red : f >= CFG.flexionAmber ? TOK.amber : TOK.text;
+    ctx.fillStyle = zone; ctx.textAlign = "center";
+    ctx.font = `600 ${numH * 0.95}px ${TOK.fontNum}`;
+    ctx.fillText(`${f.toFixed(0)}°`, cx, h - 4 * u);
+  }
+
+  // DOM text is only written when it changes (these run every sensor tick)
+  const _txt = new Map();
+  function setText(id, str) {
+    if (_txt.get(id) === str) return;
+    _txt.set(id, str);
+    $(id).textContent = str;
   }
 
   function renderPosture(zone) {
     if (Deriving.on) return;
-    $("flexion").textContent = `${S.flexion.toFixed(0)}°`;
-    $("lean").textContent = `${S.lean.toFixed(0)}°`;
-    $("twist").textContent = `${S.twist.toFixed(0)}°`;
-    $("hinge").textContent = S.pelvisFlexion != null ? `${Math.abs(S.flexion - S.pelvisFlexion).toFixed(0)}°` : "—";
-    $("liftform").textContent = S.inLift ? "lifting…" : "—";
-    const pill = $("posture-pill");
-    pill.className = `pill ${zone}`;
-    pill.textContent = zone === "green" ? "SAFE" : zone === "amber" ? "CAUTION" : "RISKY";
-    const red = S.redTotalMs + (S.redSince ? now() - S.redSince : 0);
-    $("redtime").textContent = `${(red / 1000).toFixed(1)}s`;
+    setText("flexion", `${S.flexion.toFixed(0)}°`);
+    setText("lean", `${S.lean.toFixed(0)}°`);
+    setText("twist", `${S.twist.toFixed(0)}°`);
+    setText("hinge", S.pelvisFlexion != null ? `${Math.abs(S.flexion - S.pelvisFlexion).toFixed(0)}°` : "—");
+    setText("liftform", S.inLift ? "lifting…" : "—");
+    const pill = $("posture-pill"), cls = `pill ${zone}`;
+    if (pill.className !== cls) pill.className = cls;
+    setText("posture-pill", zone === "green" ? "Safe" : zone === "amber" ? "Caution" : "Risky");
+    const panel = $("posture-panel");
+    if (panel.dataset.zone !== zone) panel.dataset.zone = zone;
+    // time in red, lift/step counters, cadence and the load split are read by shift-view.js every frame
   }
 
-  function renderGait() {
-    if (Deriving.on) return;
-    $("steps").textContent = S.steps;
-    if (S.stepTimes.length >= 4) {
-      const span = S.stepTimes[S.stepTimes.length - 1] - S.stepTimes[0];
-      const spm = ((S.stepTimes.length - 1) / (span / 1000)) * 60;
-      $("cadence").textContent = `${spm.toFixed(0)} spm`;
-    }
-    const total = S.stepsPerSide.left + S.stepsPerSide.right;
-    if (total > 6) {
-      const asym = Math.abs(S.stepsPerSide.left - S.stepsPerSide.right) / total * 100;
-      $("asym").textContent = `${asym.toFixed(0)}%`;
-    }
-  }
-
-  function renderCounters() {
-    if (Deriving.on) return;
-    $("lifts").textContent = S.lifts;
-    $("lifts-good").textContent = S.liftsGood;
-    $("lifts-bad").textContent = S.liftsBad;
-  }
+  // The summary tiles (lifts, steps, cadence, time on feet, load asymmetry) are rendered by
+  // shift-view.js from this state every frame, so the live and the replay path share one reader.
+  function renderGait() {}
+  function renderCounters() {}
 
   function renderLoads() {
     const l = S.sideLoad.left, r = S.sideLoad.right;
     const pct = l + r > 0 ? (l / (l + r)) * 100 : 50;
-    $("load-left").style.width = `${pct}%`;
-    $("load-left-pct").textContent = `${pct.toFixed(0)}%`;
-    $("load-right-pct").textContent = `${(100 - pct).toFixed(0)}%`;
+    const w = `${pct.toFixed(1)}%`;
+    if (_txt.get("load-left:w") !== w) { _txt.set("load-left:w", w); $("load-left").style.width = w; }
+    setText("load-left-pct", `${pct.toFixed(0)}%`);
+    setText("load-right-pct", `${(100 - pct).toFixed(0)}%`);
     const st = (S.replayActive && S.stabilityOverride != null) ? S.stabilityOverride : stabilityScore();
-    $("stability").textContent = st == null ? "—" : `${st}/100`;
+    setText("stability", st == null ? "—" : `${st}/100`);
   }
 
   // ---------- session (loaded recording) + replay ----------
   // Capture happens in the BrilliantWear portal. Here we LOAD a recording it
   // produced (raw sensor JSON + the webcam clip) and replay the whole warehouse
   // dashboard scrubbed in sync with the video — the golf-demo review experience.
-  const Session = { frames: [], footEvents: [], video: null, durationMs: 0, footTrack: null, raw: null, rawFormat: null, title: "" };
+  const Session = { frames: [], footEvents: [], video: null, durationMs: 0, footTrack: null, raw: null, rawFormat: null, title: "", note: "" };
   const videoWrap = () => document.querySelector(".video-wrap");
   let lastReplayMs = 0; // remembered so the vision toggle can re-plot the current moment
 
@@ -1246,17 +1335,17 @@
     const hint = $("vision-hint");
     try {
       log("Vision: extracting foot positions from the video (MediaPipe Pose)…");
-      if (hint) hint.textContent = "— extracting from video… 0%";
+      if (hint) hint.textContent = "(reading the video… 0%)";
       const token = Session.video.url; // abandon the result if the session changes mid-run
       const track = await FootTrackExtractor.extract(Session.video.url, {
-        onProgress: (f) => { if (hint && Session.video?.url === token) hint.textContent = `— extracting from video… ${Math.round(f * 100)}%`; },
+        onProgress: (f) => { if (hint && Session.video?.url === token) hint.textContent = `(reading the video… ${Math.round(f * 100)}%)`; },
       });
       if (!track || Session.video?.url !== token) return;
       track.video.syncOffsetMs = Session.video.syncOffsetMs || 0; // track time is video-relative; align to the sensor clock
       attachFootTrack(track);
       log(`Vision foot-track ready — ${track.frames.length} frames. Toggle on.`);
     } catch (e) {
-      if (hint) hint.textContent = "— vision unavailable (" + (e.message || "extract failed") + ")";
+      if (hint) hint.textContent = "(unavailable: " + (e.message || "extract failed") + ")";
       log(`Vision extraction failed: ${e.message}`, "warn");
     }
   }
@@ -1283,7 +1372,7 @@
     const hint = $("vision-hint");
     // Make the gating explicit: the toggle only does anything with a camera-derived
     // foot-track loaded (made by tools/foot-track-extractor.html); without one it's inert.
-    if (hint) hint.textContent = avail ? "foot-track loaded" : "— needs a foot-track file (tools/foot-track-extractor.html)";
+    if (hint) hint.textContent = avail ? "(loaded)" : "(needs a video)";
   }
 
   function resetSession() {
@@ -1612,36 +1701,56 @@
     return frames.length;
   }
 
+  // body[data-mode] drives the page: idle (nothing yet), live (simulated shift running),
+  // ended (simulated shift stopped, summary stays), replay (a recording is open)
+  function setMode(m) { document.body.dataset.mode = m; }
+  // opening a recording: show a loading state, and a plain error state when it cannot be opened
+  // (an already-open recording or a running shift is never replaced by a failed load)
+  const canShowLoadState = () => !S.replayActive && !S.sim;
+  function loadStarted() { if (canShowLoadState()) setMode("loading"); }
+  function loadFailed(msg, cls) { log(msg, cls || "bad"); if (canShowLoadState()) setMode("error"); }
+  function setShiftButton(running) {
+    const b = $("btn-sim");
+    b.dataset.running = running ? "true" : "false";
+    b.classList.toggle("primary", !running);
+    $("btn-sim-label").textContent = running ? "End shift" : "Start shift";
+    b.title = running ? "End the simulated shift (the summary stays on screen)" : "Run a simulated shift: walking, a safe lift and a risky lift";
+  }
+
   function enterReplay() {
     if (!Session.frames.length) return;
-    if (S.sim) { S.sim = false; $("btn-sim").textContent = "▶ Simulate"; $("btn-sim").classList.add("primary"); }
+    if (S.sim) { S.sim = false; setShiftButton(false); }
     S.replayActive = true;
+    S.userSeeked = false;
+    setMode("replay");
+    $("rec-note").textContent = Session.note || "";
     const cam = $("cam"), scrub = $("scrub"), wrap = videoWrap();
     if (Session.video) {
       cam.srcObject = null; cam.src = Session.video.url; cam.controls = true; cam.muted = true;
       wrap?.classList.add("has-video"); scrub.style.display = "none";
       const drive = () => applyReplayAt(cam.currentTime * 1000 + (Session.video.syncOffsetMs || 0));
       cam.ontimeupdate = drive; cam.onseeking = drive; cam.onseeked = drive;
-      $("video-mode").textContent = "review — play / scrub the video; the dashboard follows in sync";
-      $("video-sync").textContent = `sync offset ${Session.video.syncOffsetMs | 0}ms · ${(Session.durationMs / 1000).toFixed(1)}s`;
+      $("video-mode").textContent = "Play or scrub the video: the whole dashboard follows.";
+      $("video-sync").textContent = `Video sync offset ${Session.video.syncOffsetMs | 0} ms · ${(Session.durationMs / 1000).toFixed(1)} s of sensor data`;
       applyReplayAt(Session.video.syncOffsetMs || 0);
       // Webcam clips often open on a near-black frame (exposure still settling), which
       // reads as "no video". Park the playhead on the first bright frame instead.
       const parkOnBrightFrame = () => {
+        if (S.userSeeked) return;                       // the viewer already jumped somewhere: leave the playhead alone
         const c = document.createElement("canvas"); c.width = 32; c.height = 18;
-        const ctx = c.getContext("2d");
+        const ctx = c.getContext("2d", { willReadFrequently: true });
         const lum = () => { try { ctx.drawImage(cam, 0, 0, 32, 18); const d = ctx.getImageData(0, 0, 32, 18).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4) / 3; } catch { return 255; } };
-        const tryAt = (t) => { if (t > 3) return; cam.onseeked = () => { cam.onseeked = drive; if (lum() < 12) tryAt(t + 0.5); else drive(); }; cam.currentTime = t; };
+        const tryAt = (t) => { if (t > 3 || S.userSeeked) { cam.onseeked = drive; return; } cam.onseeked = () => { cam.onseeked = drive; if (lum() < 12) tryAt(t + 0.5); else drive(); }; cam.currentTime = t; };
         if (lum() < 12) tryAt(0.5);
       };
       if (cam.readyState >= 2) parkOnBrightFrame(); else cam.addEventListener("loadeddata", parkOnBrightFrame, { once: true });
     } else {
       wrap?.classList.remove("has-video");
-      $("video-empty").textContent = "No video attached — drag the slider to scrub the recorded data.";
+      $("video-empty").textContent = "No video with this recording. Drag the slider to scrub the sensor data.";
       scrub.style.display = "block"; scrub.value = 0;
       scrub.oninput = () => applyReplayAt((scrub.value / 1000) * Session.durationMs);
-      $("video-mode").textContent = "review (data only) — drag the slider to scrub";
-      $("video-sync").textContent = `${(Session.durationMs / 1000).toFixed(1)}s`;
+      $("video-mode").textContent = "Drag the slider to scrub the sensor data.";
+      $("video-sync").textContent = `${(Session.durationMs / 1000).toFixed(1)} s of sensor data`;
       applyReplayAt(0);
     }
   }
@@ -1653,6 +1762,14 @@
     if (scrub) { scrub.style.display = "none"; scrub.oninput = null; }
     videoWrap()?.classList.remove("has-video");
     $("video-mode").textContent = "idle"; $("video-sync").textContent = "";
+  }
+  // Jump the open recording to a moment on the sensor clock (the shift ribbon calls this on a click).
+  function seekReplay(sessionMs) {
+    if (!S.replayActive) return;
+    const ms = Math.max(0, Math.min(Session.durationMs, sessionMs));
+    S.userSeeked = true;
+    if (Session.video) { $("cam").currentTime = Math.max(0, (ms - (Session.video.syncOffsetMs || 0)) / 1000); }
+    else { $("scrub").value = String(Math.round((ms / Math.max(1, Session.durationMs)) * 1000)); applyReplayAt(ms); }
   }
   function applyReplayAt(sessionMs) {
     const F = Session.frames; if (!F.length) return;
@@ -1699,29 +1816,31 @@
   async function handleFiles(fileList) {
     const files = [...(fileList || [])];
     if (!files.length) return;
+    loadStarted();
     const jsonFiles = files.filter((f) => /\.json$/i.test(f.name) || (f.type || "").includes("json"));
     const videoFile = files.find((f) => (f.type || "").startsWith("video/") || /\.(webm|mp4|mov|m4v)$/i.test(f.name));
 
     // Classify the JSON file(s): a recording (portal-export OR SDK-nested) + optional foot-track.
     let rec = null, portal = null, track = null;
     for (const jf of jsonFiles) {
-      let obj; try { obj = await readJSON(jf); } catch (e) { log(`Bad JSON (${jf.name}): ${e.message}`, "bad"); return; }
+      let obj; try { obj = await readJSON(jf); } catch (e) { loadFailed(`That file is not valid JSON (${jf.name}): ${e.message}`); return; }
       if (isFootTrack(obj, jf.name)) track = obj;
       else if (obj && obj.recording && (Array.isArray(obj.scalar) || Array.isArray(obj.pressure))) portal = obj; // portal /export
       else { rec = obj; if (!track && obj.footTrack) track = obj.footTrack; } // SDK-nested; may embed a foot-track
     }
 
-    if (!rec && !portal && !Session.frames.length && !track) { log("Select the recording's data JSON (and optionally its video + foot-track).", "warn"); return; }
+    if (!rec && !portal && !Session.frames.length && !track) { loadFailed("Select the recording's data JSON (and optionally its video and foot-track).", "warn"); return; }
 
     if (track) Session.footTrack = track; // set BEFORE derive so footstep events can bake vision positions
     let n = Session.frames.length;
     try {
       if (portal) n = deriveFromPortalExport(portal);
       else if (rec) n = deriveFromRecording(rec);
-    } catch (e) { log(`Couldn't read that recording: ${e.message}`, "bad"); return; }
-    if (!n) { log("No usable sensor data in that file.", "warn"); return; }
+    } catch (e) { loadFailed(`Couldn't read that recording: ${e.message}`); return; }
+    if (!n) { loadFailed("No usable sensor data in that file.", "warn"); return; }
     if (portal || rec) { Session.raw = portal || rec; Session.rawFormat = portal ? "portal" : "sdk"; Session.title = portal?.recording?.title || (jsonFiles[0]?.name || "").replace(/\.json$/i, "") || Session.title; }
     setExportAvailable(!!Session.raw);
+    if (portal || rec) Session.note = "";
 
     if (videoFile) {
       if (Session.video?.url) URL.revokeObjectURL(Session.video.url);
@@ -1745,7 +1864,7 @@
     document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
   }
-  function setTitle(t) { const el = $("rec-title"); if (el) el.textContent = t ? `— ${t}` : ""; }
+  function setTitle(t) { const el = $("rec-title"); if (el) el.textContent = t || ""; }
   function setExportAvailable(avail) {
     ["btn-json", "btn-csv"].forEach((id) => { const b = $(id); if (b) b.disabled = !avail; });
   }
@@ -1787,6 +1906,7 @@
   // Load a recording by URL (gallery card / ?rec= deep link): fetch JSON (+ optional
   // video + foot-track) from the site, derive, and replay. `entry` = manifest row.
   async function loadRecordingByUrl(entry) {
+    loadStarted();
     try {
       log(`Loading “${entry.title || entry.id}”…`);
       Session.footTrack = null;
@@ -1794,8 +1914,9 @@
       if (entry.footTrack) Session.footTrack = await fetch(entry.footTrack, { cache: "no-store" }).then((r) => r.ok ? r.json() : null).catch(() => null); // no-store: a stale cached track once shadowed a re-baked one (hx missing)
       const isPortal = raw && raw.recording && (Array.isArray(raw.scalar) || Array.isArray(raw.pressure));
       const n = isPortal ? deriveFromPortalExport(raw) : deriveFromRecording(raw);
-      if (!n) { log("No usable sensor data.", "warn"); return; }
+      if (!n) { loadFailed("No usable sensor data.", "warn"); return; }
       Session.raw = raw; Session.rawFormat = isPortal ? "portal" : "sdk"; Session.title = entry.title || raw.recording?.title || entry.id;
+      Session.note = entry.note || "";
       if (Session.video?.url) URL.revokeObjectURL(Session.video.url);
       Session.video = null;
       if (entry.video) {
@@ -1806,20 +1927,21 @@
       setVisionAvailable(!!Session.footTrack); setExportAvailable(true); setTitle(Session.title);
       enterReplay();
       if (!Session.footTrack && Session.video) autoExtractFootTrack(); // no pre-baked track → derive it from the video
-    } catch (e) { log(`Couldn't load recording: ${e.message}`, "bad"); }
+    } catch (e) { loadFailed(`Couldn't load recording: ${e.message}`); }
   }
 
   async function autoLoadFromUrl() {
     const id = new URLSearchParams(location.search).get("rec");
     if (!id) return;
+    loadStarted();
     try {
       // no-store: a cached manifest from before a gallery update (e.g. a newly baked
       // foot-track) would make the app redo a ~20 s extraction on a stale entry
       const man = await fetch("recordings/manifest.json", { cache: "no-store" }).then((r) => r.ok ? r.json() : null);
       const entry = man && (man.recordings || []).find((e) => e.id === id);
       if (entry) loadRecordingByUrl(entry);
-      else log(`Recording “${id}” not found in the gallery.`, "warn");
-    } catch (e) { log(`Gallery manifest unavailable: ${e.message}`, "warn"); }
+      else loadFailed(`Recording “${id}” is not in the gallery.`, "warn");
+    } catch (e) { loadFailed(`The recordings list is unavailable: ${e.message}`, "warn"); }
   }
 
   // ---------- main loop ----------
@@ -1831,7 +1953,7 @@
       requestAnimationFrame(frame); return;
     }
     S.clockT = null;
-    if (S.sim) simTick(dt);
+    if (S.sim) simTick(Math.min(dt, 100));   // a backgrounded tab must not jump the simulation
     ShoeStage.render();
     drawGauge(); renderLoads(); drawStepMap();
     requestAnimationFrame(frame);
@@ -1843,10 +1965,10 @@
   $("btn-sim").onclick = () => {
     if (S.replayActive) exitReplay();
     S.sim = !S.sim;
-    $("btn-sim").textContent = S.sim ? "⏸ Stop Simulation" : "▶ Simulate";
-    $("btn-sim").classList.toggle("primary", !S.sim);
-    if (S.sim) { resetSession(); renderCounters(); renderGait(); log("Simulation started — walking, then lifting boxes."); }
-    else log("Simulation stopped.");
+    setShiftButton(S.sim);
+    setMode(S.sim ? "live" : "ended");
+    if (S.sim) { resetSession(); log("Shift started (simulated): walking, then lifting boxes."); }
+    else log("Shift ended. The summary stays on screen.");
   };
   $("btn-load").onclick = () => $("file-in").click();
   $("file-in").onchange = (e) => { handleFiles(e.target.files); e.target.value = ""; };
@@ -1859,11 +1981,12 @@
   };
 
   // expose read-only state for the 3D stance module (stance3d.js, ES module)
-  window.WH = { S, CFG, PAD_NORM, Session, GaitDir, FootTrackExtractor, autoExtractFootTrack, attachFootTrack };
+  window.WH = { S, CFG, PAD_NORM, Session, GaitDir, FootTrackExtractor, autoExtractFootTrack, attachFootTrack, TOK, fitCanvas, rgba, seekReplay, REDUCED_MOTION, setMode };
 
   ShoeStage.init();
   setExportAvailable(false);
-  log("Ready. Press ▶ Simulate to preview, or Load Recording to replay a portal capture synced to its video.");
+  document.querySelectorAll("[data-cfg]").forEach((el) => { const v = CFG[el.dataset.cfg]; if (v != null) el.textContent = v; });
+  log("Ready. Press Start shift to run a simulated shift, or open a recording to replay a portal capture synced to its video.");
   frame();
   autoLoadFromUrl(); // ?rec=<id> deep link from the recordings gallery
 })();
