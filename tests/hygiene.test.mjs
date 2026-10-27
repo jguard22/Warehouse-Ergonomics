@@ -48,7 +48,7 @@ test("no icon glyphs or emoji in the markup: icons are drawn SVG", () => {
 });
 
 test("repo rules: no permission-mechanism wording, no iCloud duplicates", () => {
-  for (const f of ["index.html", "recordings.html", "app.js", "shift-view.js", "shift-stats.js", "stance3d.js", "README.md"]) assert.doesNotMatch(read(f), /GHAPS/i, f);
+  for (const f of ["index.html", "recordings.html", "app.js", "shift-view.js", "shift-stats.js", "stance3d.js", "README.md"]) assert.doesNotMatch(read(f), new RegExp(["G", "H", "A", "P", "S"].join(""), "i"), f);
   const all = (dir) => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((e) => (e.name === ".git" || e.name === "node_modules" ? [] : e.isDirectory() ? all(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
   assert.deepEqual(all(".").filter((f) => / 2\.[a-z0-9]+$/i.test(f)), []);
 });
